@@ -1,0 +1,23 @@
+# large model files
+sam_vit_b_01ec64.pth
+*.pth
+
+# datasets (too large for github)
+Drywall-Join-Detect-1/
+crack-1/
+dataset/
+embeddings/
+
+# checkpoints (too large)
+checkpoints_clipseg/
+
+# predictions output
+predictions_clipseg/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# pycharm
+.idea/
