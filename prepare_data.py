@@ -12,25 +12,16 @@ SEED        = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
-# ── load SAM ───────────────────────────────────────────────────────────────
-'''from segment_anything import sam_model_registry, SamPredictor
-print("Loading SAM...")
-sam = sam_model_registry["vit_b"](checkpoint=SAM_CKPT)
-sam.to("cuda")
-predictor = SamPredictor(sam)
-print("SAM loaded.")'''
-
-# ── helpers ────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────
 def save_mask(mask_arr, out_path):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     Image.fromarray((mask_arr * 255).astype(np.uint8)).save(out_path)
 
 def prompt_filename(image_filename, prompt):
-    # use the image filename stem (without extension) as the ID
-    stem = os.path.splitext(image_filename)[0]  # "10.rf.f0b182..."
+    stem = os.path.splitext(image_filename)[0]  # "10.rf.f0b182..." # example
     return f"{stem}__{prompt.replace(' ', '_')}.png"
 
-# ── process taping area (boxes → SAM masks) ────────────────────────────────
+# ── process taping area ────────────────────────────────
 def process_taping(split_name, ann_path, img_dir, out_split):
     print(f"\nProcessing taping area - {split_name}...")
     with open(ann_path) as f:
@@ -52,7 +43,6 @@ def process_taping(split_name, ann_path, img_dir, out_split):
         h, w = img_info['height'], img_info['width']
         combined = np.zeros((h, w), dtype=np.uint8)
 
-        # fill bounding box rectangles directly — no SAM needed
         for ann in id2anns.get(img_id, []):
             x, y, bw, bh = ann['bbox']
             x1, y1 = int(x), int(y)
@@ -73,7 +63,7 @@ def process_taping(split_name, ann_path, img_dir, out_split):
 
     print(f"  Finished {count} images.")
 
-# ── process cracks (polygons → binary masks) ───────────────────────────────
+# ── process cracks ───────────────────────────────
 def process_cracks(split_name, ann_path, img_dir, out_split):
     print(f"\nProcessing cracks - {split_name}...")
     with open(ann_path) as f:
@@ -114,7 +104,6 @@ def process_cracks(split_name, ann_path, img_dir, out_split):
 
     print(f"  Finished {count} images.")
 
-# ── split cracks train → train/val (85/15) ────────────────────────────────
 def split_cracks_train(ann_path):
     with open(ann_path) as f:
         data = json.load(f)
@@ -138,11 +127,9 @@ if __name__ == "__main__":
     process_taping("val",   os.path.join(TAPING_DIR, "valid", "_annotations.coco.json"),
                    os.path.join(TAPING_DIR, "valid"), "val")
 
-    # cracks — split train into train/val, use test as test
     train_data, val_data = split_cracks_train(
         os.path.join(CRACKS_DIR, "train", "_annotations.coco.json"))
 
-    # write temp annotation files for val split
     import tempfile, json as _json
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
         _json.dump(train_data, f); train_tmp = f.name
@@ -157,7 +144,7 @@ if __name__ == "__main__":
     os.unlink(train_tmp)
     os.unlink(val_tmp)
 
-    print("\n=== All done! Dataset saved to:", OUT_DIR)
+    print("\n Dataset saved to:", OUT_DIR)
     for split in ["train", "val", "test"]:
         masks = os.path.join(OUT_DIR, split, "masks")
         if os.path.exists(masks):
