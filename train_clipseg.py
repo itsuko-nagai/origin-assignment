@@ -14,17 +14,16 @@ SEED        = 42
 BATCH_SIZE  = 8
 NUM_EPOCHS  = 30
 LR          = 1e-4
-DEVICE      = "cuda"
-IMG_SIZE    = 352  # CLIPSeg native size
+DEVICE      = "cuda" # my RTX 4060 Laptop
+IMG_SIZE    = 352
 
 os.makedirs(OUT_DIR, exist_ok=True)
 random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED)
 
 # ── prompt map ─────────────────────────────────────────────────────────────
-# mask filename contains the prompt — extract it
 def get_prompt(mask_filename):
     raw = mask_filename.split("__")[1].replace(".png", "").replace("_", " ")
-    return raw  # "segment crack" or "segment taping area"
+    return raw
 
 # ── dataset ────────────────────────────────────────────────────────────────
 class DrywallDataset(Dataset):
@@ -49,11 +48,8 @@ class DrywallDataset(Dataset):
         img  = Image.open(os.path.join(self.img_dir,  img_file)).convert("RGB")
         mask = Image.open(os.path.join(self.mask_dir, mask_file)).convert("L")
 
-        # resize mask to CLIPSeg output size (352/4 = 88 ... actually 352)
         mask = mask.resize((IMG_SIZE, IMG_SIZE), Image.NEAREST)
         mask_arr = (np.array(mask) > 0).astype(np.float32)
-
-        # process image + text through CLIPSeg processor
         encoding = self.processor(
             text=[prompt],
             images=[img],
@@ -69,9 +65,7 @@ class DrywallDataset(Dataset):
             "prompt":        prompt,
         }
 
-# ── collate (handle variable length input_ids) ─────────────────────────────
 def collate_fn(batch):
-    # pad input_ids to same length
     max_len = max(b["input_ids"].shape[0] for b in batch)
     for b in batch:
         pad = max_len - b["input_ids"].shape[0]
@@ -92,7 +86,6 @@ def dice_loss(pred, target, smooth=1.0):
     return 1 - (2*inter + smooth) / (pred.sum(1) + target.sum(1) + smooth)
 
 def total_loss(pred, target):
-    # upsample pred to match target size
     pred_up = nn.functional.interpolate(pred, size=target.shape[-2:],
                                          mode="bilinear", align_corners=False)
     return (nn.functional.binary_cross_entropy_with_logits(pred_up, target) +
@@ -149,7 +142,7 @@ for epoch in range(1, NUM_EPOCHS + 1):
                         attention_mask=attention_mask)
 
         # outputs.logits shape: (B, H, W)
-        pred = outputs.logits.unsqueeze(1)  # (B, 1, H, W)
+        pred = outputs.logits.unsqueeze(1)
         loss = total_loss(pred, masks_gt)
 
         optimizer.zero_grad()
@@ -161,7 +154,7 @@ for epoch in range(1, NUM_EPOCHS + 1):
             print(f"  epoch {epoch} | batch {b_idx+1}/{len(train_dl)} "
                   f"| loss={loss.item():.4f}")
 
-    # ── val ──
+    # ── val ──────────────────────────────────────────────────────────────────
     model.eval()
     val_losses, ious, dices = [], [], []
     with torch.no_grad():
